@@ -11,6 +11,7 @@ import Row from 'react-bootstrap/Row';
 import { initializeApp } from "firebase/app";
 import { getAnalytics } from "firebase/analytics";
 import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut } from "firebase/auth";
+import { getDatabase, ref, set, child, get, push, onValue } from "firebase/database";
 
 async function fetchAPIData(url) {
   return await axios({
@@ -42,7 +43,10 @@ function App() {
 
   const [signUp, setSignUp] = useState(false);
   const [loggedIn, setLoggedIn] = useState(user !== null);
+  const [userData, setUserData] = useState([]);
+  const [savedImages, setSavedImages] = useState([]);
   const [email, setEmail] = useState("");
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
   const [searchValue, setSearchValue] = useState("");
@@ -55,6 +59,7 @@ function App() {
   const [fetchDogImage, setFetchDogImage] = useState(false);
   const [dogFact, setDogFact] = useState([]);
   const [fetchDogFact, setFetchDogFact] = useState(false);
+  const [saved, setSaved] = useState(false);
 
   useEffect(() => {
     console.log("Fetching random image...");
@@ -75,6 +80,7 @@ function App() {
   }, [fetchDogFact]);
 
   const onEmailInput = ({target:{value}}) => setEmail(value);
+  const onUsernameInput = ({target:{value}}) => setUsername(value);
   const onPasswordInput = ({target:{value}}) => setPassword(value);
 
   const onCreateUserSubmit = e => {
@@ -84,6 +90,36 @@ function App() {
       .then((userCredential) => {
         // Signed in 
         // const user = userCredential.user;
+        const db = getDatabase();
+        set(ref(db, 'users/' + userCredential.user.uid), {
+          username: username,
+          email: email
+        });
+
+        const dbRef = ref(getDatabase());
+        get(child(dbRef, `users/${userCredential.user.uid}`)).then((snapshot) => {
+          if (snapshot.exists()) {
+            setUserData(snapshot.val());
+          }
+        }).catch((error) => {
+          console.error(error);
+        });
+
+        const dbSavedImagesRef = ref(db, `users/${userCredential.user.uid}/saved_images`);
+        onValue(dbSavedImagesRef, (snapshot) => {
+          let arr = [];
+          snapshot.forEach((childSnapshot) => {
+            const childKey = childSnapshot.key;
+            const childData = childSnapshot.val();
+            arr.push(childData.image_url);
+          });
+          console.log("onValue called");
+          arr.reverse();
+          setSavedImages(arr);
+        }, {
+          onlyOnce: false
+        });
+
         setLoggedIn(true);
       })
       .catch((error) => {
@@ -100,6 +136,31 @@ function App() {
       .then((userCredential) => {
         // Signed in 
         // const user = userCredential.user;
+        const dbRef = ref(getDatabase());
+        get(child(dbRef, `users/${userCredential.user.uid}`)).then((snapshot) => {
+          if (snapshot.exists()) {
+            setUserData(snapshot.val());
+          }
+        }).catch((error) => {
+          console.error(error);
+        });
+        
+        const db = getDatabase();
+        const dbSavedImagesRef = ref(db, `users/${userCredential.user.uid}/saved_images`);
+        onValue(dbSavedImagesRef, (snapshot) => {
+          let arr = [];
+          snapshot.forEach((childSnapshot) => {
+            const childKey = childSnapshot.key;
+            const childData = childSnapshot.val();
+            arr.push(childData.image_url);
+          });
+          console.log("onValue called");
+          arr.reverse();
+          setSavedImages(arr);
+        }, {
+          onlyOnce: false
+        });
+
         setLoggedIn(true);
       })
       .catch((error) => {
@@ -117,12 +178,60 @@ function App() {
         // Sign-out successful.
         setErrorMessage("");
         setEmail("");
+        setUsername("");
         setPassword("");
+        setUserData([]);
+        setSavedImages([]);
         setSignUp(false);
         setLoggedIn(false);
       }).catch((error) => {
         // An error happened.
       });
+  }
+
+  const onSaveImage = e => {
+    e.preventDefault();
+    console.log("Saving image...");
+    const db = getDatabase();
+    const imageListRef = ref(db, 'users/' + user.uid + '/saved_images');
+    const newImageRef = push(imageListRef);
+    set(newImageRef, {
+        image_url: dogImage.message
+    });
+    const dbRef = ref(getDatabase());
+    get(child(dbRef, `users/${user.uid}`)).then((snapshot) => {
+      if (snapshot.exists()) {
+        setUserData(snapshot.val());
+      }
+    }).catch((error) => {
+      console.error(error);
+    });
+    setSaved(true);
+  }
+
+  const onSaveSearch = e => {
+    e.preventDefault();
+    console.log("Saving search...");
+    const db = getDatabase();
+    const imageListRef = ref(db, 'users/' + user.uid + '/saved_images');
+    const newImageRef = push(imageListRef);
+    set(newImageRef, {
+        image_url: searchImage.message
+    });
+    const dbRef = ref(getDatabase());
+    get(child(dbRef, `users/${user.uid}`)).then((snapshot) => {
+      if (snapshot.exists()) {
+        setUserData(snapshot.val());
+      }
+    }).catch((error) => {
+      console.error(error);
+    });
+    setSaved(true);
+  }
+
+  const onUnsaveImage = e => {
+    e.preventDefault();
+    console.log("Unsaving image...");
   }
 
   const onSearchInput = ({target:{value}}) => setSearchValue(value);
@@ -178,6 +287,10 @@ function App() {
               <Form.Label>Email Address</Form.Label>
               <Form.Control type="email" placeholder="name@example.com" onChange={onEmailInput} value={email} />
             </Form.Group>
+            <Form.Group className="FormElement" controlId="signUpForm.username">
+              <Form.Label>Username</Form.Label>
+              <Form.Control type="text" placeholder="username" onChange={onUsernameInput} value={username} />
+            </Form.Group>
             <Form.Group className="FormElement" controlId="signUpForm.password">
               <Form.Label>Password</Form.Label>
               <Form.Control type="password" placeholder="password" onChange={onPasswordInput} value={password} />
@@ -226,10 +339,21 @@ function App() {
       );
     } else {
       return (
-        <Alert id="fullScreenAlert" variant="secondary" onClose={() => {setShowSearch(false); setSearchValue("");}} dismissible>
+        <Alert id="fullScreenAlert" variant="secondary" onClose={() => {setShowSearch(false); setSearchValue(""); setSaved(false);}} dismissible>
           <Alert.Heading>{searchValue}</Alert.Heading>
           <Image rounded src={searchImage.message} />
-          <Button variant="secondary" onClick={onSearchSubmit}>Another One!</Button>
+          <div id="saveRow">
+            <Button variant="secondary" id="imageBtn" onClick={onSearchSubmit}>Another One!</Button>
+            { saved ? (
+              <span id="filledStarIcon" className="material-symbols-outlined">
+                star
+              </span>
+            ) : (
+              <span id="outlinedStarIcon" className="material-symbols-outlined" onClick={onSaveSearch}>
+                star
+              </span>
+            )}
+          </div>
         </Alert>
       );
     }
@@ -237,10 +361,21 @@ function App() {
 
   if (showImage) {
     return (
-      <Alert id="fullScreenAlert" variant="secondary" onClose={() => {setShowImage(false); setFetchDogImage(!fetchDogImage);}} dismissible>
+      <Alert id="fullScreenAlert" variant="secondary" onClose={() => {setShowImage(false); setFetchDogImage(!fetchDogImage); setSaved(false);}} dismissible>
         <Alert.Heading>Random Image</Alert.Heading>
         <Image rounded src={dogImage.message} />
-        <Button variant="secondary" onClick={() => setFetchDogImage(!fetchDogImage)}>Another One!</Button>
+        <div id="saveRow">
+          <Button variant="secondary" id="imageBtn" onClick={() => setFetchDogImage(!fetchDogImage)}>Another One!</Button>
+          { saved ? (
+            <span id="filledStarIcon" className="material-symbols-outlined">
+              star
+            </span>
+          ) : (
+            <span id="outlinedStarIcon" className="material-symbols-outlined" onClick={onSaveImage}>
+              star
+            </span>
+          )}
+        </div>
       </Alert>
     );
   }
@@ -258,7 +393,8 @@ function App() {
   return (
     <div className="App">
       <div className="HeadBlock">
-        <p>Signed in as {user.email}, <a href="#" onClick={onSignOut}>sign out?</a></p>
+        <h1>Hi {userData.username}!</h1>
+        <p><a href="#" onClick={onSignOut}>Sign out?</a></p>
         <Form onSubmit={onSearchSubmit}>
           <InputGroup>
             <Form.Control type="text" placeholder="Search images by breed..." onChange={onSearchInput} value={searchValue} />
@@ -277,6 +413,12 @@ function App() {
             <Button variant="secondary" onClick={() => setShowFact(true)}>Random Fact</Button>
           </Col>
         </Row>
+      </div>
+      
+      <div id="savedImages">
+        {savedImages?.map(url => (
+          <Image id="savedImage" rounded src={url} />
+        ))}
       </div>
     </div>
   );
