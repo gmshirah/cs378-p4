@@ -8,6 +8,8 @@ import Form from 'react-bootstrap/Form';
 import Image from 'react-bootstrap/Image'
 import InputGroup from 'react-bootstrap/InputGroup';
 import Row from 'react-bootstrap/Row';
+import { initializeApp } from "firebase/app";
+import { getAnalytics } from "firebase/analytics";
 
 async function fetchAPIData(url) {
   return await axios({
@@ -17,6 +19,23 @@ async function fetchAPIData(url) {
 }
 
 function App() {
+  // Firebase configuration
+  const firebaseConfig = {
+    apiKey: "AIzaSyDuQfg1cH9VyExr9ACaa1VuYLtK2560b8M",
+    authDomain: "cs378-p4-81fdd.firebaseapp.com",
+    databaseURL: "https://cs378-p4-81fdd-default-rtdb.firebaseio.com",
+    projectId: "cs378-p4-81fdd",
+    storageBucket: "cs378-p4-81fdd.appspot.com",
+    messagingSenderId: "43755040085",
+    appId: "1:43755040085:web:1e82ead64f5874491ad3dc",
+    measurementId: "G-52SKHQ58RS"
+  };
+
+  // Initialize Firebase
+  const app = initializeApp(firebaseConfig);
+  const analytics = getAnalytics(app);
+
+  const [loggedIn, setLoggedIn] = useState(false);
   const [searchValue, setSearchValue] = useState("");
   const [searchError, setSearchError] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
@@ -79,6 +98,14 @@ function App() {
     }
     getData();
     setShowSearch(true);
+  }
+
+  if (!loggedIn) {
+    return (
+      <div className="App">
+        <p>You are not logged in!</p>
+      </div>
+    );
   }
 
   if (showSearch) {
