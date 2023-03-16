@@ -1,8 +1,12 @@
-.HeadBlock {
+.HeadBlock, .LoginPage, .SignUpPage {
   /* box-shadow: 0px 10px 10px 0 rgba(0, 0, 0, 0.2); */
   padding: 30px;
   /* position: sticky;
   top: 0; */
+}
+
+.FormElement {
+  margin-bottom: 20px;
 }
 
 .input-group {
@@ -37,7 +41,7 @@
   text-align: right;
 }
 
-.alert {
+#fullScreenAlert {
   width: 90%;
   height: 60vh;
   margin: auto;

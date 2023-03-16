@@ -10,6 +10,7 @@ import InputGroup from 'react-bootstrap/InputGroup';
 import Row from 'react-bootstrap/Row';
 import { initializeApp } from "firebase/app";
 import { getAnalytics } from "firebase/analytics";
+import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut } from "firebase/auth";
 
 async function fetchAPIData(url) {
   return await axios({
@@ -35,7 +36,15 @@ function App() {
   const app = initializeApp(firebaseConfig);
   const analytics = getAnalytics(app);
 
-  const [loggedIn, setLoggedIn] = useState(false);
+  // Initialize Firebase Authentication and get a reference to the service
+  const auth = getAuth(app);
+  const user = auth.currentUser;
+
+  const [signUp, setSignUp] = useState(false);
+  const [loggedIn, setLoggedIn] = useState(user !== null);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [errorMessage, setErrorMessage] = useState("");
   const [searchValue, setSearchValue] = useState("");
   const [searchError, setSearchError] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
@@ -64,6 +73,57 @@ function App() {
     }
     getData();
   }, [fetchDogFact]);
+
+  const onEmailInput = ({target:{value}}) => setEmail(value);
+  const onPasswordInput = ({target:{value}}) => setPassword(value);
+
+  const onCreateUserSubmit = e => {
+    e.preventDefault();
+    console.log("Creating user...");
+    createUserWithEmailAndPassword(auth, email, password)
+      .then((userCredential) => {
+        // Signed in 
+        // const user = userCredential.user;
+        setLoggedIn(true);
+      })
+      .catch((error) => {
+        const errorCode = error.code;
+        const errorMessage = error.message;
+        setErrorMessage(errorMessage);
+      });
+  }
+
+  const onSignInSubmit = e => {
+    e.preventDefault();
+    console.log("Signing in...");
+    signInWithEmailAndPassword(auth, email, password)
+      .then((userCredential) => {
+        // Signed in 
+        // const user = userCredential.user;
+        setLoggedIn(true);
+      })
+      .catch((error) => {
+        const errorCode = error.code;
+        const errorMessage = error.message;
+        setErrorMessage(errorMessage);
+      });
+  }
+
+  const onSignOut = e => {
+    e.preventDefault();
+    console.log("Signing out...");
+    signOut(auth)
+      .then(() => {
+        // Sign-out successful.
+        setErrorMessage("");
+        setEmail("");
+        setPassword("");
+        setSignUp(false);
+        setLoggedIn(false);
+      }).catch((error) => {
+        // An error happened.
+      });
+  }
 
   const onSearchInput = ({target:{value}}) => setSearchValue(value);
 
@@ -101,24 +161,72 @@ function App() {
   }
 
   if (!loggedIn) {
-    return (
-      <div className="App">
-        <p>You are not logged in!</p>
-      </div>
-    );
+    if (signUp) {
+      return (
+        <div className="SignUpPage">
+          <h1>Sign Up</h1>
+          { errorMessage.length > 0 ? (
+            <Alert variant="danger" onClose={() => {setErrorMessage("");}} dismissible>
+              <Alert.Heading>Error</Alert.Heading>
+              <p>{errorMessage}</p>
+            </Alert>
+          ) : (
+            <span></span>
+          )}
+          <Form onSubmit={onCreateUserSubmit}>
+            <Form.Group className="FormElement" controlId="signUpForm.email">
+              <Form.Label>Email Address</Form.Label>
+              <Form.Control type="email" placeholder="name@example.com" onChange={onEmailInput} value={email} />
+            </Form.Group>
+            <Form.Group className="FormElement" controlId="signUpForm.password">
+              <Form.Label>Password</Form.Label>
+              <Form.Control type="password" placeholder="password" onChange={onPasswordInput} value={password} />
+            </Form.Group>
+            <Button className="FormElement" variant="secondary" type="submit">Sign Up</Button>
+          </Form>
+          <p>Already have an account? <a href="#" onClick={() => {setSignUp(false); setErrorMessage(""); setEmail(""); setPassword("");}}>Login!</a></p>
+        </div>
+      );
+    } else {
+      return (
+        <div className="LoginPage">
+          <h1>Login</h1>
+          { errorMessage.length > 0 ? (
+            <Alert variant="danger" onClose={() => {setErrorMessage("");}} dismissible>
+              <Alert.Heading>Error</Alert.Heading>
+              <p>{errorMessage}</p>
+            </Alert>
+          ) : (
+            <span></span>
+          )}
+          <Form onSubmit={onSignInSubmit}>
+            <Form.Group className="FormElement" controlId="loginForm.email">
+              <Form.Label>Email Address</Form.Label>
+              <Form.Control type="email" placeholder="name@example.com" onChange={onEmailInput} value={email} />
+            </Form.Group>
+            <Form.Group className="FormElement" controlId="loginForm.password">
+              <Form.Label>Password</Form.Label>
+              <Form.Control type="password" placeholder="password" onChange={onPasswordInput} value={password} />
+            </Form.Group>
+            <Button className="FormElement" variant="secondary" type="submit">Login</Button>
+          </Form>
+          <p>Don't have an account? <a href="#" onClick={() => {setSignUp(true); setErrorMessage(""); setEmail(""); setPassword("");}}>Sign up!</a></p>
+        </div>
+      );
+    }
   }
 
   if (showSearch) {
     if (searchError) {
       return (
-        <Alert variant="danger" onClose={() => {setShowSearch(false); setSearchValue(""); setSearchError(false);}} dismissible>
+        <Alert id="fullScreenAlert" variant="danger" onClose={() => {setShowSearch(false); setSearchValue(""); setSearchError(false);}} dismissible>
           <Alert.Heading>Invalid Search</Alert.Heading>
           <p>Oh, no! We couldn't find any images of "{searchValue}". Please close this alert and try again.</p>
         </Alert>
       );
     } else {
       return (
-        <Alert variant="secondary" onClose={() => {setShowSearch(false); setSearchValue("");}} dismissible>
+        <Alert id="fullScreenAlert" variant="secondary" onClose={() => {setShowSearch(false); setSearchValue("");}} dismissible>
           <Alert.Heading>{searchValue}</Alert.Heading>
           <Image rounded src={searchImage.message} />
           <Button variant="secondary" onClick={onSearchSubmit}>Another One!</Button>
@@ -129,7 +237,7 @@ function App() {
 
   if (showImage) {
     return (
-      <Alert variant="secondary" onClose={() => {setShowImage(false); setFetchDogImage(!fetchDogImage);}} dismissible>
+      <Alert id="fullScreenAlert" variant="secondary" onClose={() => {setShowImage(false); setFetchDogImage(!fetchDogImage);}} dismissible>
         <Alert.Heading>Random Image</Alert.Heading>
         <Image rounded src={dogImage.message} />
         <Button variant="secondary" onClick={() => setFetchDogImage(!fetchDogImage)}>Another One!</Button>
@@ -139,7 +247,7 @@ function App() {
 
   if (showFact) {
     return (
-      <Alert variant="secondary" onClose={() => {setShowFact(false); setFetchDogFact(!fetchDogFact);}} dismissible>
+      <Alert id="fullScreenAlert" variant="secondary" onClose={() => {setShowFact(false); setFetchDogFact(!fetchDogFact);}} dismissible>
         <Alert.Heading>Random Fact</Alert.Heading>
         <p>{dogFact.attributes.body}</p>
         <Button variant="secondary" onClick={() => setFetchDogFact(!fetchDogFact)}>Another One!</Button>
@@ -150,6 +258,7 @@ function App() {
   return (
     <div className="App">
       <div className="HeadBlock">
+        <p>Signed in as {user.email}, <a href="#" onClick={onSignOut}>sign out?</a></p>
         <Form onSubmit={onSearchSubmit}>
           <InputGroup>
             <Form.Control type="text" placeholder="Search images by breed..." onChange={onSearchInput} value={searchValue} />
